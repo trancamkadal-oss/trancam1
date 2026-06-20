@@ -16,7 +16,8 @@
   <style>
     /* ==================== GLOBAL STYLE ==================== */
     body {
-      background-image: url('{{ url_for("static", filename="background.jpg") }}');
+      /* PERBAIKAN: Menggunakan path statis Netlify untuk background */
+      background-image: url('/static/background.jpg');
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
@@ -245,7 +246,7 @@
   <div class="container">
     <div class="header">
       <button class="hamburger" onclick="toggleSidebar()" aria-label="Open Menu">
-        <img src="{{ url_for('static', filename='hamburger_icon.png') }}" width="32" height="32" alt="Menu">
+        <img src="/static/hamburger_icon.png" width="32" height="32" alt="Menu">
       </button>
       <div class="header-title-box">
         <h1>The Winner Takes It All</h1>
@@ -262,24 +263,24 @@
     <div class="controls">
       <div class="nav-buttons">
         <button class="nav-btn" id="prev-btn" onclick="goToPreviousParagraph()">
-          <img src="{{ url_for('static', filename='previous_icon.png') }}" width="32" height="32" alt="Previous">
+          <img src="/static/previous_icon.png" width="32" height="32" alt="Previous">
         </button>
         <button class="play-btn" id="autoplay-btn" onclick="toggleAutoPlay()">
-          <img src="{{ url_for('static', filename='playall_icon.png') }}" width="44" height="44" alt="Play">
+          <img src="/static/playall_icon.png" width="44" height="44" alt="Play">
         </button>
         <button class="nav-btn" id="next-btn" onclick="goToNextParagraph()">
-          <img src="{{ url_for('static', filename='next_icon.png') }}" width="32" height="32" alt="Next">
+          <img src="/static/next_icon.png" width="32" height="32" alt="Next">
         </button>
       </div>
 
       <button class="btn-secondary" onclick="clearTextBox()" style="background:none; border:none; padding:0; cursor:pointer;">
-        <img src="{{ url_for('static', filename='clear_icon.png') }}" width="32" height="32" alt="Clear">
+        <img src="/static/clear_icon.png" width="32" height="32" alt="Clear">
       </button>
 
       <div class="speed-control" style="width: 100%; max-width: 300px; display: flex; align-items: center; gap: 10px; margin-top: 10px;">
         <label style="font-size: 0.85rem; color: #94a3b8;">Speed</label>
         <input type="range" id="speed-slider" min="10" max="80" value="25" step="5" style="flex: 1;">
-        <span class="speed-value" id="speed-value" style="font-size: 0.85rem; color: #94a3b8;">30 ms</span>
+        <span class="speed-value" id="speed-value" style="font-size: 0.85rem; color: #94a3b8;">25 ms</span>
       </div>
     </div>
   </div>
@@ -302,33 +303,42 @@
     const speedSlider = document.getElementById('speed-slider'); 
     const speedValue = document.getElementById('speed-value'); 
 
-    // GENERATE SIDEBAR SITEM ACCORDION (DROP-DOWN)
+    // PERBAIKAN: GENERATE SIDEBAR ACCORDION BERDASARKAN HASIL SCAN FOLDER BACKEND SAKTI
     function fetchAndGenerateMenu() {
-      fetch('/api/stories')
+      fetch('/api/list-stories') // Mengarah ke route scan folder kita
         .then(res => res.json())
         .then(data => {
+          if (data.status !== 'success') throw new Error(data.message);
+          
           const menuBox = document.getElementById('dynamic-menu-box');
           menuBox.innerHTML = ''; 
           
-          data.forEach(story => {
+          data.folders.forEach(folderName => {
             const storyDiv = document.createElement('div');
             storyDiv.className = 'menu-story';
             
             const titleDiv = document.createElement('div');
             titleDiv.className = 'menu-story-title';
-            titleDiv.textContent = story.story_title;
+            // Ubah format text folder: "Cerita_Horor" jadi "Cerita Horor"
+            titleDiv.textContent = folderName.replace(/_/g, ' '); 
             storyDiv.appendChild(titleDiv);
             
             const wrapperDiv = document.createElement('div');
             wrapperDiv.className = 'chapters-wrapper';
             
-            story.chapters.forEach(ch => {
+            // LATIHAN: Karena Netlify Serverless membatasi scan file dinamis di dalam subfolder secara bebas,
+            // di sini kita asumsikan setiap folder cerita punya Chapter 1 sampai 3 secara berurutan.
+            // (Nanti nama file teks di folder lo disesuaikan jadi: 1.txt, 2.txt, 3.txt)
+            const chapters = [1, 2, 3]; 
+            
+            chapters.forEach(ch => {
               const babDiv = document.createElement('div');
               babDiv.className = 'menu-bab';
               
               const btn = document.createElement('button');
               btn.textContent = `Chapter ${ch}`;
-              btn.onclick = () => loadChapter(story.folder_name, ch);
+              // Panggil fungsi load dengan format: loadChapter('Horor', '1.txt')
+              btn.onclick = () => loadChapter(folderName, `${ch}.txt`);
               
               babDiv.appendChild(btn);
               wrapperDiv.appendChild(babDiv);
@@ -339,7 +349,6 @@
             titleDiv.onclick = function() {
               const isOpen = titleDiv.classList.contains('active');
               
-              // Tutup dulu semua laci drop-down novel lain
               document.querySelectorAll('.menu-story-title').forEach(el => el.classList.remove('active'));
               document.querySelectorAll('.chapters-wrapper').forEach(el => el.style.maxHeight = '0');
               
@@ -355,190 +364,20 @@
         .catch(err => console.error("Gagal memuat daftar cerita:", err));
     }
 
-    // LOAD TEXT NOVEL DARI BACKEND PYTHON
-    function loadChapter(storyName, chapterNumber) {
-      fetch(`/api/text/${storyName}/${chapterNumber}`)
+    // PERBAIKAN: AJAK FLASK BACKEND UNTUK BACA TEKS DARI UTAS ARSITEKTUR KITA
+    function loadChapter(folderName, fileName) {
+      fetch(`/api/read-story/${folderName}/${fileName}`)
         .then(res => {
-          if (!res.ok) throw new Error(`Chapter ${chapterNumber} tidak ditemukan.`);
-          return res.text();
+          if (!res.ok) throw new Error(`Cerita ${fileName} tidak ditemukan.`);
+          return res.json();
         })
-        .then(text => {
-          paragraphs = text.trim().split(/\n\s*\n+/).filter(p => p.trim()); 
-          currentParagraphIndex = 0; 
-          currentStoryEl.textContent = storyName.replace(/_/g, ' ') + ' - Chapter ' + chapterNumber; 
+        .then(data => {
+          if (data.status === 'error') throw new Error(data.message);
           
-          toggleSidebar(); 
-          updateIndicator(); 
-          startTypingParagraph(); 
-        })
-        .catch(err => alert(err.message)); 
-    }
-
-    // TOGGLE SIDEBAR UTAMA (DIPERBAIKI AGAR OTOMATIS MERESET ACCORDION SAAT MENUTUP)
-    function toggleSidebar() {
-      const sidebar = document.getElementById('sidebar'); 
-      const overlay = document.getElementById('overlay'); 
-      if(sidebar && overlay) { 
-        const isClosing = sidebar.classList.contains('open');
-        
-        sidebar.classList.toggle('open'); 
-        overlay.classList.toggle('show'); 
-        
-        // Perbaikan Krusial: Jika sidebar ditutup, bersihkan status drop-down agar klik hamburger berikutnya tidak macet
-        if (isClosing) {
-          document.querySelectorAll('.menu-story-title').forEach(el => el.classList.remove('active'));
-          document.querySelectorAll('.chapters-wrapper').forEach(el => el.style.maxHeight = '0');
-        }
-      }
-    }
-
-    function parseBasicMarkdown(text) {
-      let html = text; 
-      if (html.match(/^- /m)) {
-        html = html.replace(/^- (.*)$/gm, '<li>$1</li>'); 
-        html = '<ul style="margin:8px 0; padding-left:20px;">' + html + '</ul>'; 
-      }
-      const colors = {
-        red: "#ff6b6b", blue: "#4dabf7", green: "#69db7c", orange: "#ffa94d",
-        purple: "#9775fa", pink: "#f783ac", yellow: "#ffd43b", cyan: "#66d9e8",
-        teal: "#38d9a9", indigo: "#748ffc", violet: "#b197fc", lime: "#a9e34b",
-        amber: "#ffc078", rose: "#ff8787", sky: "#74c0fc", emerald: "#51cf66", fuchsia: "#e599f7", slate: "#844e96", zinc: "#909296"
-      };
-      for (const [name, hex] of Object.entries(colors)) {
-        html = html.replace(new RegExp(`\\{${name}\\}(.*?)\\{\\/${name}\\}`, 'g'), `<span style="color:${hex}">$1</span>`); 
-        html = html.replace(new RegExp(`\\[${name}\\](.*?)\\[\\/${name}\\]`, 'g'), `<span style="color:${hex}">$1</span>`); 
-      }
-      html = html.replace(/\{large\}(.*?)\{\/large\}/g, '<span style="font-size:1.35em; font-weight:600">$1</span>'); 
-      html = html.replace(/\{small\}(.*?)\{\/small\}/g, '<span style="font-size:0.85em">$1</span>'); 
-      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); 
-      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>'); 
-      html = html.replace(/_(.+?)_/g, '<em>$1</em>'); 
-      return html; 
-    }
-
-    function updateIndicator() {
-      prevBtn.disabled = currentParagraphIndex === 0; 
-      nextBtn.disabled = currentParagraphIndex === paragraphs.length - 1; 
-    }
-
-    function startTypingParagraph() {
-      if (isTyping) clearTimeout(timeoutId); 
-      isTyping = true; 
-      typedText.innerHTML = ''; 
-      cursor.style.display = 'inline-block'; 
-      const rawText = paragraphs[currentParagraphIndex]; 
-      const htmlContent = parseBasicMarkdown(rawText); 
-      let i = 0; 
-      const speed = parseInt(speedSlider.value); 
-      
-      function type() {
-        if (i < htmlContent.length) { 
-          typedText.innerHTML = htmlContent.substring(0, i + 1); 
-          i++; 
-          storyBox.scrollTop = storyBox.scrollHeight; 
-          timeoutId = setTimeout(type, speed); 
-        } else {
-          isTyping = false; 
-          if (isAutoPlaying) { 
-            autoPlayTimeout = setTimeout(() => { 
-              if (currentParagraphIndex < paragraphs.length - 1) { 
-                currentParagraphIndex++; 
-                updateIndicator(); 
-                startTypingParagraph(); 
-              } else {
-                isAutoPlaying = false; 
-                autoplayBtn.innerHTML = `<img src="/static/playall_icon.png" width="44" height="44" alt="Play">`; 
-              }
-            }, 2000); 
-          }
-        }
-      }
-      type(); 
-    }
-
-    function goToNextParagraph() {
-      if (paragraphs.length === 0) return; 
-      if (isAutoPlaying) { 
-        isAutoPlaying = false; 
-        if (autoPlayTimeout) clearTimeout(autoPlayTimeout); 
-        autoplayBtn.innerHTML = `<img src="/static/playall_icon.png" width="44" height="44" alt="Play">`; 
-      }
-      if (currentParagraphIndex < paragraphs.length - 1) { 
-        currentParagraphIndex++; 
-        updateIndicator(); 
-        startTypingParagraph(); 
-      }
-    }
-
-    function goToPreviousParagraph() {
-      if (paragraphs.length === 0) return; 
-      if (isAutoPlaying) { 
-        isAutoPlaying = false; 
-        if (autoPlayTimeout) clearTimeout(autoPlayTimeout); 
-        autoplayBtn.innerHTML = `<img src="/static/playall_icon.png" width="44" height="44" alt="Play">`; 
-      }
-      if (currentParagraphIndex > 0) { 
-        currentParagraphIndex--; 
-        updateIndicator(); 
-        startTypingParagraph(); 
-      }
-    }
-
-    function restartCurrentParagraph() {
-      if (paragraphs.length === 0) return; 
-      if (isAutoPlaying) { 
-        isAutoPlaying = false; 
-        if (autoPlayTimeout) clearTimeout(autoPlayTimeout); 
-        autoplayBtn.innerHTML = `<img src="/static/playall_icon.png" width="44" height="44" alt="Play">`; 
-      }
-      startTypingParagraph(); 
-    }
-
-    function toggleAutoPlay() {
-      if (paragraphs.length === 0) return; 
-      if (isAutoPlaying) { 
-        isAutoPlaying = false; 
-        if (autoPlayTimeout) clearTimeout(autoPlayTimeout); 
-        autoplayBtn.innerHTML = `<img src="/static/playall_icon.png" width="44" height="44" alt="Play">`; 
-      } else {
-        isAutoPlaying = true; 
-        autoplayBtn.innerHTML = `<img src="/static/stop_icon.png" width="44" height="44" alt="Stop">`; 
-        startTypingParagraph(); 
-      }
-    }
-
-    function clearTextBox() {
-      if (timeoutId) clearTimeout(timeoutId); 
-      if (autoPlayTimeout) clearTimeout(autoPlayTimeout); 
-      isTyping = false; isAutoPlaying = false; 
-      autoplayBtn.innerHTML = `<img src="/static/playall_icon.png" width="44" height="44" alt="Play">`; 
-      typedText.innerHTML = ''; cursor.style.display = 'none'; 
-      paragraphs = []; currentParagraphIndex = 0; 
-      currentStoryEl.textContent = "The Story of Ivy"; 
-      updateIndicator(); 
-    }
-
-    speedSlider.addEventListener('input', () => { 
-      document.getElementById('speed-value').textContent = speedSlider.value + ' ms'; 
-    });
-
-    document.addEventListener('keydown', e => { 
-      if (e.key === 'ArrowRight') goToNextParagraph(); 
-      if (e.key === 'ArrowLeft') goToPreviousParagraph(); 
-      if (e.key.toLowerCase() === 'r') restartCurrentParagraph(); 
-      if (e.key === "Escape") { 
-        const sidebar = document.getElementById('sidebar'); 
-        if (sidebar && sidebar.classList.contains('open')) toggleSidebar(); 
-      }
-    });
-
-    window.onload = function() { 
-      fetchAndGenerateMenu(); 
-      currentStoryEl.textContent = "The Story of Ivy"; 
-      typedText.innerHTML = ''; 
-      cursor.style.display = 'none'; 
-      updateIndicator(); 
-    }
-  </script>
-</body>
-</html>
+          // Pecah paragraf berdasarkan double enter (\n\n)
+          paragraphs = data.content.trim().split(/\n\s*\n+/).filter(p => p.trim()); 
+          currentParagraphIndex = 0; 
+          
+          // Update judul di header
+          const cleanFolderName = folderName.replace(/_/g, ' ');
+          const cleanFileName = fileName.replace
