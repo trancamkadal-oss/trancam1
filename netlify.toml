@@ -1,0 +1,14 @@
+[build]
+  command = "pip install -r requirements.txt"
+  publish = "public"            # <-- Menentukan folder HTML statis lo
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"               # <-- Semua URL yang diawali /api/ bakal lari ke Flask
+  to = "/.netlify/functions/api"
+  status = 200
+
+[[redirects]]
+  from = "/*"                   # <-- Sisanya tetap di-handle Flask (jika gak ada file statisnya)
+  to = "/.netlify/functions/api"
+  status = 200
